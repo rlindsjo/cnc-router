@@ -54,12 +54,21 @@ void setup() {
   // I2C
   oled.begin();
   oled.setFont(u8g2_font_7x14_tf);
+  displayWelcome();
 }
 
 void loop() {
   readEncoders();
   readJoystick();
   stepMotors(); 
+}
+
+void displayWelcome() {
+  oled.firstPage();
+  do {
+    oled.setCursor(0, 25);
+    oled.print("Tilialacus CNC");
+  } while(oled.nextPage());
 }
 
 void readEncoders() {
@@ -74,7 +83,7 @@ void stepMotors() {
     yStep = ySpeed;
     step = MAX_STEPS;
     c++;
-    if ((c & 7) == 7) {
+    if (1==2) {
       c = 0;
       oled.firstPage();
       do {
