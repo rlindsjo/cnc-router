@@ -33,9 +33,9 @@ byte c = 0;
 U8G2_SH1106_128X64_NONAME_1_HW_I2C oled(U8G2_R0);
 
 void setup() {
-  // Set PC0-PC2 as analog inputs
-
-  //  calibrate();
+  oled.begin();
+  oled.setFont(u8g2_font_7x14_tf);
+  displayWelcome();
 
   // Set digital 8 - 13 for digital output (14-19)
   step = MAX_STEPS;
@@ -56,10 +56,7 @@ void setup() {
   pinMode(7, INPUT);
 
   adc.begin();
-  // I2C
-  oled.begin();
-  oled.setFont(u8g2_font_7x14_tf);
-  displayWelcome();
+  delay(1000); // Placeholder to give time to calibrate system;
 }
 
 void loop() {
@@ -73,7 +70,11 @@ void loop() {
 void displayWelcome() {
   oled.firstPage();
   do {
+    oled.setCursor(0, 10);
+    oled.print("Calibrating");
     oled.setCursor(0, 25);
+    oled.print("Please wait");
+    oled.setCursor(0, 64);
     oled.print("Tilialacus CNC");
   } while (oled.nextPage());
 }
