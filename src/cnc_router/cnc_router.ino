@@ -63,30 +63,11 @@ void setup() {
 }
 
 void loop() {
-  int x = adc.read(0);
-  int y = adc.read(1);
-  int z = adc.read(2);
-  int s = adc.read(6);
+  int x = adc.read(0) - 512;
+  int y = adc.read(1) - 512;
+  int z = adc.read(2) - 512;
 
-  oled.firstPage();
-  do {
-    char buf[12];
-    uint8_t offset, line;
-    line = 10;
-    itoa(x, buf, 10);
-    offset = oled.drawStr(0, line, "x=");
-    offset += oled.drawStr(offset, line, buf);
-    itoa(y, buf, 10);
-    offset = 64;
-    offset += oled.drawStr(offset, line, "y=");
-    oled.drawStr(offset, line, buf);
-    line += 15;
-    offset = 0;
-    itoa(z, buf, 10);
-    offset = oled.drawStr(0, line, "z=");
-    offset += oled.drawStr(offset, line, buf);
-    oled.drawStr(0, 64, "Tilialacus CNC");
-  } while (oled.nextPage());
+  displayPos(x, y, z);
 }
 
 void displayWelcome() {
@@ -94,6 +75,25 @@ void displayWelcome() {
   do {
     oled.setCursor(0, 25);
     oled.print("Tilialacus CNC");
+  } while (oled.nextPage());
+}
+
+void displayPos(int x, int y, int z) {
+  char buf[5]; // Only 3 digit signed numbers
+  uint8_t offset, line;
+  oled.firstPage();
+  do {
+    line = 10;
+    offset = oled.drawStr(0, line, "x=");
+    offset += oled.drawStr(offset, line, itoa(x, buf, 10));
+    offset = 64;
+    offset += oled.drawStr(offset, line, "y=");
+    oled.drawStr(offset, line, itoa(y, buf, 10));
+    line += 15;
+    offset = 0;
+    offset = oled.drawStr(0, line, "z=");
+    offset += oled.drawStr(offset, line, itoa(z, buf, 10));
+    oled.drawStr(0, 64, "Tilialacus CNC");
   } while (oled.nextPage());
 }
 
