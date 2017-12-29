@@ -3,7 +3,7 @@
 static int *_values;
 static uint8_t _channel;
 static uint8_t _channels;
-static bool _throwaway;
+static uint8_t _sample;
 
 InterruptADC::InterruptADC(uint8_t channels) {
   _values = new int[channels];
@@ -20,7 +20,7 @@ void InterruptADC::begin() {
 }
 
 ISR(ADC_vect) {
-  if (_throwaway = !_throwaway) {
+  if (++_sample < 3) {
     return;
   }
   
@@ -31,6 +31,7 @@ ISR(ADC_vect) {
     _channel = 0;
   }
   ADMUX = 0x40 | _channel;
+  _sample = 0;
 }
 
 int InterruptADC::read(uint8_t channel) {
