@@ -18,11 +18,11 @@ void InterruptADC::begin() {
 }
 
 void InterruptADC::isr() {
-  if (++_sample < 3) {
+  if (++_sample < 5) {
     return;
   }
   
-  int aval = ADCL; // lower uint8_t
+  uint16_t aval = ADCL; // lower uint8_t
   aval += ADCH << 8;  // higher uint8_t
   _values[_channel] = aval;
   if (++_channel == _channels) {

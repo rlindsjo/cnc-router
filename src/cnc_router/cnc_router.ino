@@ -83,7 +83,7 @@ void displayWelcome() {
   } while (oled.nextPage());
 }
 
-void displayPos(int32_t x, int y, int z) {
+void displayPos(int32_t x, int32_t y, int32_t z) {
   char buf[12];
   uint8_t offset, line;
   oled.firstPage();
@@ -114,10 +114,11 @@ void readEncoders() {
   }
 }
 
-volatile uint8_t timer_step = 0;
+uint8_t timer_step = 0;
 ISR(TIMER2_COMPA_vect){
   if (++timer_step == 0) {
-    int t = (adc.read(0) - 512) >> 1;
+    int16_t t;
+    t = (adc.read(0) - 512) >> 1;
     x_motor.dir = t > 0;
     x_motor.target = 256 - abs(t);
     t = (adc.read(1) - 512) >> 1;
@@ -127,13 +128,14 @@ ISR(TIMER2_COMPA_vect){
     z_motor.dir = t > 0;
     z_motor.target = 256 - abs(t);
   }
-  uint8_t motor_states = calculateMotor(&x_motor);
-  motor_states |= calculateMotor(&y_motor);
-  motor_states |= calculateMotor(&z_motor);
+  uint8_t motor_states =
+    calculateMotor(&x_motor)
+    | calculateMotor(&y_motor)
+    | calculateMotor(&z_motor);
   PORTB = motor_states;
 }
 
-uint8_t calculateMotor(struct Motor * m) {
+uint8_t calculateMotor(volatile struct Motor * m) {
   if (m->target < 250) {
     if (--m->step == 0) {
       m->on = !m->on;
