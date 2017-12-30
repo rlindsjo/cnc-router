@@ -10,9 +10,9 @@ class InterruptADC {
     int read(byte channel);
     void isr();
   private:
-    int *_values;
-    uint8_t _channel;
-    uint8_t _channels;
+    volatile int *_values;
+    volatile uint8_t _channel;
+    volatile uint8_t _channels;
     uint8_t _sample;
 };
 
