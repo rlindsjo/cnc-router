@@ -119,7 +119,7 @@ ISR(TIMER2_COMPA_vect){
   if (++timer_step == 0) {
     int16_t t;
     t = (adc.read(0) - 512) >> 1;
-    x_motor.dir = t > 0;
+    x_motor.dir = t < 0;
     x_motor.target = 256 - abs(t);
     t = (adc.read(1) - 512) >> 1;
     y_motor.dir = t > 0;
