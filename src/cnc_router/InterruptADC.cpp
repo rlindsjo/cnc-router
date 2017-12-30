@@ -1,9 +1,6 @@
 #include "InterruptADC.h"
 
-static int *_values;
-static uint8_t _channel;
-static uint8_t _channels;
-static uint8_t _sample;
+static InterruptADC * _instance;
 
 InterruptADC::InterruptADC(uint8_t channels) {
   _values = new int[channels];
@@ -11,7 +8,9 @@ InterruptADC::InterruptADC(uint8_t channels) {
 }
 
 void InterruptADC::begin() {
+  _instance = this;
   _channel = 0;
+  _sample = 0;
   ADMUX = 0x40;            
   ADCSRA = 0xAC; // AD-converter on, interrupt enabled, prescaler = 128
   ADCSRB = 0x40; // AD channels MUX on, free running mode
@@ -19,7 +18,7 @@ void InterruptADC::begin() {
   sei();
 }
 
-ISR(ADC_vect) {
+void InterruptADC::isr() {
   if (++_sample < 3) {
     return;
   }
@@ -27,7 +26,7 @@ ISR(ADC_vect) {
   int aval = ADCL; // lower uint8_t
   aval += ADCH << 8;  // higher uint8_t
   _values[_channel] = aval;
-  if (++_channel == 3) {
+  if (++_channel == _channels) {
     _channel = 0;
   }
   ADMUX = 0x40 | _channel;
@@ -36,6 +35,10 @@ ISR(ADC_vect) {
 
 int InterruptADC::read(uint8_t channel) {
   return _values[channel];
+}
+
+ISR(ADC_vect) {
+  _instance->isr();
 }
 
 
