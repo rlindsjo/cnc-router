@@ -8,7 +8,8 @@
 InterruptADC adc(3);
 
 // Six digital outputs (step and direction of x, y and z)
-byte motorStates;
+static uint8_t motorStates;
+byte x = 255;
 
 byte xSpeed = 255;
 byte ySpeed = 255;
@@ -20,13 +21,12 @@ byte zActual = 255;
 
 const byte MAX_STEPS = 40;
 byte step;
+
 // Start in stopped state
 byte xStep = 255;
 byte yStep = 255;
 byte zStep = 255;
-byte c = 0;
-
-// Six digital inputs for rotary encoders for x, y, and z)
+byte toggle2 = 0;
 
 // TWI I2C (1 pins) for display
 // Analog 4 (27)
@@ -37,8 +37,9 @@ void setup() {
   oled.setFont(u8g2_font_7x14_tf);
   displayWelcome();
 
-  // Set digital 8 - 13 for digital output (14-19)
   step = MAX_STEPS;
+
+  // Set digital 8 - 13 for digital output (14-19)
   motorStates = 0;
   pinMode(8, OUTPUT);
   pinMode(9, OUTPUT);
@@ -48,22 +49,41 @@ void setup() {
   pinMode(13, OUTPUT);
 
   // Set 2-7 for digital input (4-6, 11-13)
-  pinMode(2, INPUT);
+  pinMode(2, INPUT_PULLUP);
   pinMode(3, INPUT);
   pinMode(4, INPUT);
   pinMode(5, INPUT);
-  pinMode(6, INPUT);
-  pinMode(7, INPUT);
+  pinMode(6, INPUT_PULLUP);
+  pinMode(7, INPUT_PULLUP);
+
+  // Timer 2 to 8KHz
+  TCCR2A = 0; // set entire TCCR2A register to 0
+  TCCR2B = 0; // same for TCCR2B
+  TCNT2  = 0; //initialize counter value to 0
+  // set compare match register for 8khz increments
+  OCR2A = 249; // = (16*10^6) / (8000*8) - 1 (must be <256)
+  TCCR2A |= (1 << WGM21); // turn on CTC mode
+  TCCR2B |= (1 << CS21); // Set CS21 bit for 8 prescaler
+  TIMSK2 |= (1 << OCIE2A); // enable timer compare interrupt
 
   adc.begin();
-  delay(1000); // Placeholder to give time to calibrate system;
+  calibrate();
 }
 
+uint8_t max_speed = 3;
+
 void loop() {
-  int x = adc.read(0) - 512;
+  int t = (adc.read(0) - 512) >> 1;
+  if (t > 0) {
+    motorStates |= B00001000;
+  } else {
+    motorStates &= B11110111;
+  }
+  x = 256 - abs(t);
   int y = adc.read(1) - 512;
   int z = adc.read(2) - 512;
 
+  readEncoders();
   displayPos(x, y, z);
 }
 
@@ -94,56 +114,47 @@ void displayPos(int x, int y, int z) {
     offset = 0;
     offset = oled.drawStr(0, line, "z=");
     offset += oled.drawStr(offset, line, itoa(z, buf, 10));
+    offset = 64;
+    offset += oled.drawStr(offset, line, "s=");
+    oled.drawStr(offset, line, itoa(max_speed, buf, 10));
     oled.drawStr(0, 64, "Tilialacus CNC");
   } while (oled.nextPage());
 }
 
 void readEncoders() {
-  byte input = PORTD;
-  // Do stuff using bit 2-7
+  byte input = PIND;
+  if (input & B01000000) {
+    max_speed = 8;
+  } else {
+    max_speed = 3;
+  }
 }
 
-void stepMotors() {
-  // Calculate state of each motor
-  if (--step == 0) {
-    step = MAX_STEPS;
-  }
+uint8_t s = 0;
+uint8_t dx = 255;
+uint8_t wx = 255;
 
-  if (xSpeed > 0) {
-    if (xStep == xSpeed) {
-      // Toggle x
-      motorStates ^= 0b00000001;
-      xStep = 0;
+ISR(TIMER2_COMPA_vect){
+  if (x < 250) {
+    if (--dx == 0) {
+      motorStates ^= B00000001;
+      dx = wx;
+    }
+  }
+  if (++s == 255) {
+    if (wx > x) {
+      if (wx <= max_speed) {
+        wx = max_speed;
+      } else {
+        wx -= (((wx - x) >> 4) + 1);
+      }
     } else {
-      ++xStep;
+      wx = x;
     }
   }
   PORTB = motorStates;
 }
 
-void readJoystick() {
-  int read = adc.read(0);
-  if (read > 512) {
-    motorStates |= 0b00001000;
-    read = 1023 - read;
-  } else {
-    motorStates &= 0b11110111;
-  }
-
-  if (read > 230) {
-    xSpeed = 0;
-  } else {
-    xSpeed = 1;
-    for (int i = 0; i < read; i += 25) {
-      ++xSpeed;
-    }
-  }
-}
-
 void calibrate() {
+  delay(1000); // Placeholder to give time to calibrate system;
 }
-
-void sendDisplay() {
-}
-
-
