@@ -7,26 +7,21 @@
 // For tracking analog in
 InterruptADC adc(3);
 
-// Six digital outputs (step and direction of x, y and z)
-static uint8_t motorStates;
-byte x = 255;
+uint8_t max_speed = 3;
 
-byte xSpeed = 255;
-byte ySpeed = 255;
-byte zSpeed = 255;
+struct Motor {
+  uint8_t pins;
+  int32_t pos;
+  uint8_t step;
+  uint8_t actual;
+  uint8_t target;
+  bool dir;
+  bool on;
+};
 
-byte xActual = 255;
-byte yActual = 255;
-byte zActual = 255;
-
-const byte MAX_STEPS = 40;
-byte step;
-
-// Start in stopped state
-byte xStep = 255;
-byte yStep = 255;
-byte zStep = 255;
-byte toggle2 = 0;
+struct Motor x_motor = { B00001001, 0, 0, 255, 255, 0, 0};
+struct Motor y_motor = { B00010010, 0, 0, 255, 255, 0, 0};
+struct Motor z_motor = { B00100100, 0, 0, 255, 255, 0, 0};
 
 // TWI I2C (1 pins) for display
 // Analog 4 (27)
@@ -37,10 +32,7 @@ void setup() {
   oled.setFont(u8g2_font_7x14_tf);
   displayWelcome();
 
-  step = MAX_STEPS;
-
   // Set digital 8 - 13 for digital output (14-19)
-  motorStates = 0;
   pinMode(8, OUTPUT);
   pinMode(9, OUTPUT);
   pinMode(10, OUTPUT);
@@ -74,21 +66,9 @@ void setup() {
   calibrate();
 }
 
-uint8_t max_speed = 3;
-
 void loop() {
-  int t = (adc.read(0) - 512) >> 1;
-  if (t > 0) {
-    motorStates |= B00001000;
-  } else {
-    motorStates &= B11110111;
-  }
-  x = 256 - abs(t);
-  int y = adc.read(1) - 512;
-  int z = adc.read(2) - 512;
-
   readEncoders();
-  displayPos(x, y, z);
+  displayPos(x_motor.pos, y_motor.pos, z_motor.pos);
 }
 
 void displayWelcome() {
@@ -103,8 +83,8 @@ void displayWelcome() {
   } while (oled.nextPage());
 }
 
-void displayPos(int x, int y, int z) {
-  char buf[5]; // Only 3 digit signed numbers
+void displayPos(int32_t x, int y, int z) {
+  char buf[12];
   uint8_t offset, line;
   oled.firstPage();
   do {
@@ -134,29 +114,49 @@ void readEncoders() {
   }
 }
 
-uint8_t s = 0;
-uint8_t dx = 255;
-uint8_t wx = 255;
-
+volatile uint8_t timer_step = 0;
 ISR(TIMER2_COMPA_vect){
-  if (x < 250) {
-    if (--dx == 0) {
-      motorStates ^= B00000001;
-      dx = wx;
+  if (++timer_step == 0) {
+    int t = (adc.read(0) - 512) >> 1;
+    x_motor.dir = t > 0;
+    x_motor.target = 256 - abs(t);
+    t = (adc.read(1) - 512) >> 1;
+    y_motor.dir = t > 0;
+    y_motor.target = 256 - abs(t);
+    t = (adc.read(2) - 512) >> 1;
+    z_motor.dir = t > 0;
+    z_motor.target = 256 - abs(t);
+  }
+  uint8_t motor_states = calculateMotor(&x_motor);
+  motor_states |= calculateMotor(&y_motor);
+  motor_states |= calculateMotor(&z_motor);
+  PORTB = motor_states;
+}
+
+uint8_t calculateMotor(struct Motor * m) {
+  if (m->target < 250) {
+    if (--m->step == 0) {
+      m->on = !m->on;
+      m->step = m->actual;
+      if (m->dir) {
+        ++m->pos;
+      } else {
+        --m->pos;
+      }
     }
   }
-  if (++s == 255) {
-    if (wx > x) {
-      if (wx <= max_speed) {
-        wx = max_speed;
+  if (timer_step == 255) {
+    if (m->actual > m->target) {
+      if (m->actual <= max_speed) {
+        m->actual = max_speed;
       } else {
-        wx -= (((wx - x) >> 4) + 1);
+        m->actual -= (((m->actual - m->target) >> 4) + 1);
       }
     } else {
-      wx = x;
+      m->actual = m->target;
     }
   }
-  PORTB = motorStates;
+  return ((m->dir ? B00111000 : 0) | (m->on ? B00000111 : 0)) & m->pins;
 }
 
 void calibrate() {
