@@ -15,7 +15,6 @@ void InterruptADC::begin() {
   ADCSRA = 0xAC; // AD-converter on, interrupt enabled, prescaler = 128
   ADCSRB = 0x40; // AD channels MUX on, free running mode
   ADCSRA |= 1 << 6;  // Start the conversion
-  sei();
 }
 
 void InterruptADC::isr() {

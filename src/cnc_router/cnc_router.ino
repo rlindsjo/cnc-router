@@ -67,6 +67,10 @@ void setup() {
   TIMSK2 |= (1 << OCIE2A); // enable timer compare interrupt
 
   adc.begin();
+
+  // Enable interrupts
+  sei();
+
   calibrate();
 }
 
