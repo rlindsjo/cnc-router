@@ -22,6 +22,7 @@ struct Motor {
 struct Motor x_motor = { B00001001, 0, 0, 255, 255, 0, 0};
 struct Motor y_motor = { B00010010, 0, 0, 255, 255, 0, 0};
 struct Motor z_motor = { B00100100, 0, 0, 255, 255, 0, 0};
+uint8_t motor_correction = B00001000;
 
 // TWI I2C (1 pins) for display
 // Analog 4 (27)
@@ -119,7 +120,7 @@ ISR(TIMER2_COMPA_vect){
   if (++timer_step == 0) {
     int16_t t;
     t = (adc.read(0) - 512) >> 1;
-    x_motor.dir = t < 0;
+    x_motor.dir = t > 0;
     x_motor.target = 256 - abs(t);
     t = (adc.read(1) - 512) >> 1;
     y_motor.dir = t > 0;
@@ -129,9 +130,10 @@ ISR(TIMER2_COMPA_vect){
     z_motor.target = 256 - abs(t);
   }
   uint8_t motor_states =
-    calculateMotor(&x_motor)
+    (calculateMotor(&x_motor)
     | calculateMotor(&y_motor)
-    | calculateMotor(&z_motor);
+    | calculateMotor(&z_motor))
+    ^ motor_correction;
   PORTB = motor_states;
 }
 
