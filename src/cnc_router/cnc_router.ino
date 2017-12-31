@@ -118,16 +118,9 @@ void readEncoders() {
 uint8_t timer_step = 0;
 ISR(TIMER2_COMPA_vect){
   if (++timer_step == 0) {
-    int16_t t;
-    t = (adc.read(0) - 512) >> 1;
-    x_motor.dir = t > 0;
-    x_motor.target = 256 - abs(t);
-    t = (adc.read(1) - 512) >> 1;
-    y_motor.dir = t > 0;
-    y_motor.target = 256 - abs(t);
-    t = (adc.read(2) - 512) >> 1;
-    z_motor.dir = t > 0;
-    z_motor.target = 256 - abs(t);
+    updateMotor(&x_motor, adc.read(0));
+    updateMotor(&y_motor, adc.read(1));
+    updateMotor(&z_motor, adc.read(2));
   }
   uint8_t motor_states =
     (calculateMotor(&x_motor)
@@ -135,6 +128,12 @@ ISR(TIMER2_COMPA_vect){
     | calculateMotor(&z_motor))
     ^ motor_correction;
   PORTB = motor_states;
+}
+
+uint8_t updateMotor(volatile struct Motor * m, int16_t reading) {
+  reading = (reading - 512) >> 1;
+  m->dir = reading > 0;
+  m->target = 256 - abs(reading);
 }
 
 uint8_t calculateMotor(volatile struct Motor * m) {
