@@ -112,19 +112,21 @@ void displayPos(int32_t x, int32_t y, int32_t z) {
 
 void readEncoders() {
   byte input = PIND;
+
+  rotary((PIND >> 1) & B11);
+
   if (input & B01000000) {
-    max_speed = 8;
+    reset(&x_motor);
+    reset(&y_motor);
+    reset(&x_motor);
   } else {
     max_speed = 3;
   }
 }
 
-uint8_t timer_step = 0;
-uint8_t pins_old = 0;
+volatile uint8_t pins_old;
 
-ISR(TIMER2_COMPA_vect){
-  uint8_t pins = (PIND >> 1) & B11;
-
+void rotary(uint8_t pins) {
   if ((pins & B10) != (pins_old & B10)) {
     if (pins == B11 || pins == B00) {
       z_motor.target_pos += 100;
@@ -135,6 +137,18 @@ ISR(TIMER2_COMPA_vect){
     z_motor.dir = z_motor.target_pos > z_motor.pos;
     pins_old = pins;
   }
+
+}
+uint8_t reset(volatile struct Motor * m) {
+  m->pos = 0;
+  m->target_pos = 0;
+  m->target = 255;
+}
+
+uint8_t timer_step = 0;
+
+ISR(TIMER2_COMPA_vect){
+  readEncoders();
   if (++timer_step == 0 && enable_joystick) {
     updateMotor(&x_motor, adc.read(0));
     updateMotor(&y_motor, adc.read(1));
@@ -158,7 +172,7 @@ uint8_t calculateMotor(volatile struct Motor * m) {
   if (m->pos == m->target_pos) {
     return 0;
   }
-  if (m->target < 250) {
+  if (m->target < 230) {
     if (--m->step == 0) {
       m->on = !m->on;
       m->step = m->actual;
