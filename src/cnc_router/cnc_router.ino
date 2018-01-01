@@ -7,11 +7,14 @@
 // For tracking analog in
 InterruptADC adc(3);
 
+uint8_t count = 0;
+
 uint8_t max_speed = 3;
 
 struct Motor {
   uint8_t pins;
   int32_t pos;
+  int32_t target_pos;
   uint8_t step;
   uint8_t actual;
   uint8_t target;
@@ -19,9 +22,9 @@ struct Motor {
   bool on;
 };
 
-struct Motor x_motor = { B00001001, 0, 0, 255, 255, 0, 0};
-struct Motor y_motor = { B00010010, 0, 0, 255, 255, 0, 0};
-struct Motor z_motor = { B00100100, 0, 0, 255, 255, 0, 0};
+struct Motor x_motor = { B00001001, 0, 0x0fffffff ,0, 255, 255, 0, 0};
+struct Motor y_motor = { B00010010, 0, 0x0fffffff, 0, 255, 255, 0, 0};
+struct Motor z_motor = { B00100100, 0, 0, 0, 255, 255, 0, 0};
 uint8_t motor_correction = B00001000;
 
 // TWI I2C (1 pins) for display
@@ -43,9 +46,9 @@ void setup() {
 
   // Set 2-7 for digital input (4-6, 11-13)
   pinMode(2, INPUT_PULLUP);
-  pinMode(3, INPUT);
-  pinMode(4, INPUT);
-  pinMode(5, INPUT);
+  pinMode(3, INPUT_PULLUP);
+  pinMode(4, INPUT_PULLUP);
+  pinMode(5, INPUT_PULLUP);
   pinMode(6, INPUT_PULLUP);
   pinMode(7, INPUT_PULLUP);
 
@@ -67,6 +70,7 @@ void setup() {
   calibrate();
 }
 
+volatile bool enable_joystick = 1;
 void loop() {
   readEncoders();
   displayPos(x_motor.pos, y_motor.pos, z_motor.pos);
@@ -101,7 +105,7 @@ void displayPos(int32_t x, int32_t y, int32_t z) {
     offset += oled.drawStr(offset, line, itoa(z, buf, 10));
     offset = 64;
     offset += oled.drawStr(offset, line, "s=");
-    oled.drawStr(offset, line, itoa(max_speed, buf, 10));
+    oled.drawStr(offset, line, itoa(count, buf, 10));
     oled.drawStr(0, 64, "Tilialacus CNC");
   } while (oled.nextPage());
 }
@@ -116,11 +120,25 @@ void readEncoders() {
 }
 
 uint8_t timer_step = 0;
+uint8_t pins_old = 0;
+
 ISR(TIMER2_COMPA_vect){
-  if (++timer_step == 0) {
+  uint8_t pins = (PIND >> 1) & B11;
+
+  if ((pins & B10) != (pins_old & B10)) {
+    if (pins == B11 || pins == B00) {
+      z_motor.target_pos += 100;
+    } else {
+      z_motor.target_pos -= 100;
+    }
+    z_motor.target = 0;
+    z_motor.dir = z_motor.target_pos > z_motor.pos;
+    pins_old = pins;
+  }
+  if (++timer_step == 0 && enable_joystick) {
     updateMotor(&x_motor, adc.read(0));
     updateMotor(&y_motor, adc.read(1));
-    updateMotor(&z_motor, adc.read(2));
+    //updateMotor(&z_motor, adc.read(2));
   }
   uint8_t motor_states =
     (calculateMotor(&x_motor)
@@ -137,6 +155,9 @@ uint8_t updateMotor(volatile struct Motor * m, int16_t reading) {
 }
 
 uint8_t calculateMotor(volatile struct Motor * m) {
+  if (m->pos == m->target_pos) {
+    return 0;
+  }
   if (m->target < 250) {
     if (--m->step == 0) {
       m->on = !m->on;
