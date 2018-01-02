@@ -22,10 +22,10 @@ struct Motor {
   bool on;
 };
 
-struct Motor x_motor = { B00001001, 0, 0x0fffffff ,0, 255, 255, 0, 0};
-struct Motor y_motor = { B00010010, 0, 0x0fffffff, 0, 255, 255, 0, 0};
+struct Motor x_motor = { B00001001, 0, 0x7FFFFF ,0, 255, 255, 0, 0};
+struct Motor y_motor = { B00010010, 0, 0x7FFFFF, 0, 255, 255, 0, 0};
 struct Motor z_motor = { B00100100, 0, 0, 0, 255, 255, 0, 0};
-uint8_t motor_correction = B00001000;
+uint8_t motor_correction = B00101000;
 
 // TWI I2C (1 pins) for display
 // Analog 4 (27)
@@ -73,7 +73,7 @@ void setup() {
 volatile bool enable_joystick = 1;
 void loop() {
   readEncoders();
-  displayPos(x_motor.pos, y_motor.pos, z_motor.pos);
+  displayPos(&x_motor, &y_motor, &z_motor);
 }
 
 void displayWelcome() {
@@ -88,23 +88,34 @@ void displayWelcome() {
   } while (oled.nextPage());
 }
 
-void displayPos(int32_t x, int32_t y, int32_t z) {
+void displayPos(Motor * x, Motor * y, Motor * z) {
   char buf[12];
   uint8_t offset, line;
   oled.firstPage();
   do {
     line = 10;
     offset = oled.drawStr(0, line, "x=");
-    offset += oled.drawStr(offset, line, itoa(x, buf, 10));
+    offset += oled.drawStr(offset, line, itoa(x->pos, buf, 10));
     offset = 64;
     offset += oled.drawStr(offset, line, "y=");
-    oled.drawStr(offset, line, itoa(y, buf, 10));
+    oled.drawStr(offset, line, itoa(y->pos, buf, 10));
     line += 15;
     offset = 0;
     offset = oled.drawStr(0, line, "z=");
-    offset += oled.drawStr(offset, line, itoa(z, buf, 10));
+    offset += oled.drawStr(offset, line, itoa(z->pos, buf, 10));
     offset = 64;
     offset += oled.drawStr(offset, line, "s=");
+    line += 15;
+    offset = 0;
+    offset = oled.drawStr(0, line, "x=");
+    offset += oled.drawStr(offset, line, itoa(x->target_pos, buf, 10));
+    offset = 64;
+    offset += oled.drawStr(offset, line, "y=");
+    oled.drawStr(offset, line, itoa(y->target_pos, buf, 10));
+    line += 15;
+    offset = 0;
+    offset = oled.drawStr(0, line, "z=");
+    offset += oled.drawStr(offset, line, itoa(z->target_pos, buf, 10));
     oled.drawStr(offset, line, itoa(count, buf, 10));
     oled.drawStr(0, 64, "Tilialacus CNC");
   } while (oled.nextPage());
@@ -115,12 +126,10 @@ void readEncoders() {
 
   rotary((PIND >> 1) & B11);
 
-  if (input & B01000000) {
+  if (input & B01000000 == 0) {
     reset(&x_motor);
     reset(&y_motor);
-    reset(&x_motor);
-  } else {
-    max_speed = 3;
+    reset(&z_motor);
   }
 }
 
@@ -129,16 +138,16 @@ volatile uint8_t pins_old;
 void rotary(uint8_t pins) {
   if ((pins & B10) != (pins_old & B10)) {
     if (pins == B11 || pins == B00) {
-      z_motor.target_pos += 100;
+      z_motor.target_pos += 50;
     } else {
-      z_motor.target_pos -= 100;
+      z_motor.target_pos -= 50;
     }
     z_motor.target = 0;
     z_motor.dir = z_motor.target_pos > z_motor.pos;
     pins_old = pins;
   }
-
 }
+
 uint8_t reset(volatile struct Motor * m) {
   m->pos = 0;
   m->target_pos = 0;
@@ -152,7 +161,6 @@ ISR(TIMER2_COMPA_vect){
   if (++timer_step == 0 && enable_joystick) {
     updateMotor(&x_motor, adc.read(0));
     updateMotor(&y_motor, adc.read(1));
-    //updateMotor(&z_motor, adc.read(2));
   }
   uint8_t motor_states =
     (calculateMotor(&x_motor)
