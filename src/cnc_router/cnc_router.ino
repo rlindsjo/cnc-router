@@ -2,6 +2,71 @@
 
 #include "InterruptADC.h"
 
+#define DOWN -5
+#define UP 5
+
+const int prog[] = {
+  -5000,
+  // Full speed
+  0, 0, 0,
+  5008, 8, 100,
+  // E
+  0, 0, -1,
+  100, 0, 0,
+  -100, 0, UP,
+  0, 0, DOWN,
+  0, 200, 0,
+  100, 0, 0,
+  0, 0, UP,
+  -100, -100, 0,
+  0, 0, DOWN,
+  50, 0, 0,
+  0, 0, UP,
+
+  100, -100, 0,
+
+  // L
+  0, 0, DOWN,
+  0, 200, 0,
+  100, 0, 0,
+  0, 0, UP,
+  50, -200, 0,
+
+  // L
+  0, 0, DOWN,
+  0, 200, 0,
+  100, 0, 0,
+  0, 0, UP,
+
+  50, -200, 0,
+
+  // E
+  0, 0, DOWN,
+  100, 0, 0,
+  -100, 0, UP,
+  0, 0, DOWN,
+  0, 200, 0,
+  100, 0, 0,
+  0, 0, UP,
+  -100, -100, 0,
+  0, 0, DOWN,
+  50, 0, 0,
+  0, 0, UP,
+
+  // N
+  100, 100, 0,
+  0, 0, DOWN,
+  0, -200, 0,
+  // Halfs speed x
+  5016, 8, 100,
+  100, 200, 0,
+  // Full speed
+  5008, 8, 100,
+  0, -200, 0,
+  0, 0, UP,
+  -5000
+};
+
 // 16 MHz
 
 // For tracking analog in
@@ -71,11 +136,41 @@ void setup() {
 }
 
 volatile bool enable_joystick = 1;
+volatile int i = 0;
 void loop() {
   readEncoders();
   displayPos(&x_motor, &y_motor, &z_motor);
+  runProg();
 }
 
+void runProg() {
+  delay(10000); // Placeholder to give time to calibrate system;
+  enable_joystick = 0;
+  while(prog[i] > -5000) {
+    if (prog[i] >= 5000) { // Speed
+      x_motor.target = prog[i + 0] - 5000;
+      y_motor.target = prog[i + 1];
+      z_motor.target = prog[i + 2];
+    } else {
+      x_motor.target_pos += prog[i + 0] * 50;
+      x_motor.dir = prog[i + 0] > 0;
+      y_motor.target_pos += prog[i + 1] * 50;
+      y_motor.dir = prog[i + 1] > 0;
+      z_motor.target_pos += prog[i + 2] * 150;
+      z_motor.dir = prog[i + 2] > 0;
+    }
+    while (
+      x_motor.pos != x_motor.target_pos ||
+      y_motor.pos != y_motor.target_pos ||
+      z_motor.pos != z_motor.target_pos
+      )
+      displayPos(&x_motor, &y_motor, &z_motor);
+
+    i += 3;
+  }
+  enable_joystick = 1;
+  delay(10000); // Placeholder to give time to calibrate system;
+}
 void displayWelcome() {
   oled.firstPage();
   do {
